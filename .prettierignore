@@ -6,3 +6,6 @@ dist
 package-lock.json
 supabase/.temp
 spec.md.txt
+supabase/migrations
+supabase/tests
+supabase/seed.sql

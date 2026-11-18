@@ -11,7 +11,10 @@ export interface Palette {
   border: string;
   text: string;
   text2: string;
+  /** Tertiary icons, hairline glyphs and disabled states. Not for readable text. */
   text3: string;
+  /** Tertiary text that must stay readable (>= 4.5:1 on every surface). */
+  textMuted: string;
   accent: string;
   /** Text/icon color drawn on top of `accent` fills. */
   onAccent: string;
@@ -19,6 +22,10 @@ export interface Palette {
   decline: string;
   caution: string;
   target: string;
+  /** Text-safe variants of growth / decline / caution (>= 4.5:1 on bg and surfaces). */
+  growthInk: string;
+  declineInk: string;
+  cautionInk: string;
   /** Low-alpha tints for pills and soft fills. */
   accentSoft: string;
   growthSoft: string;
@@ -36,12 +43,16 @@ export const colors: Record<ColorScheme, Palette> = {
     text: '#F2F4F7',
     text2: '#A3ACB9',
     text3: '#6B7380',
+    textMuted: '#838C9A',
     accent: '#8B97FF',
     onAccent: '#0B0D10',
     growth: '#3DD68C',
     decline: '#FF6B57',
     caution: '#F5B544',
     target: '#6B7380',
+    growthInk: '#3DD68C',
+    declineInk: '#FF6B57',
+    cautionInk: '#F5B544',
     accentSoft: 'rgba(139,151,255,0.14)',
     growthSoft: 'rgba(61,214,140,0.14)',
     declineSoft: 'rgba(255,107,87,0.14)',
@@ -56,12 +67,16 @@ export const colors: Record<ColorScheme, Palette> = {
     text: '#0E1116',
     text2: '#5A6270',
     text3: '#8A919C',
+    textMuted: '#686F7C',
     accent: '#4F5BD5',
     onAccent: '#FFFFFF',
     growth: '#12A150',
     decline: '#D93F2B',
     caution: '#B7791F',
     target: '#8A919C',
+    growthInk: '#0D7C3E',
+    declineInk: '#BC3422',
+    cautionInk: '#8D5B0E',
     accentSoft: 'rgba(79,91,213,0.10)',
     growthSoft: 'rgba(18,161,80,0.10)',
     declineSoft: 'rgba(217,63,43,0.10)',

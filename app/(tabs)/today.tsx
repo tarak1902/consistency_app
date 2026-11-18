@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { ChevronRight, UserRound } from 'lucide-react-native';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { RefreshControl, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState, RefreshControl, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, useReducedMotion } from 'react-native-reanimated';
 import {
   Card,
@@ -31,7 +31,7 @@ import { statusLine } from '@/features/today/status';
 import { DOT, dayAndTime, longDate, mediumDate, score, signedPct } from '@/lib/format';
 import { haptics } from '@/lib/haptics';
 import { reschedule } from '@/lib/notifications';
-import { syncServerClock, useServerNow } from '@/lib/serverClock';
+import { serverNow, syncServerClock, useServerNow } from '@/lib/serverClock';
 import { radius, space, useTheme } from '@/theme';
 
 export default function TodayScreen() {
@@ -206,6 +206,20 @@ function ActivePlan({ bundle, state, now, banner, refresh, settingsButton }: Act
     // Re-run only when the plan, the day or today's tick count changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plan.id, day, doneCount, state.phase]);
+
+  // ...and rebuild them whenever the app returns to the foreground.
+  const latest = useRef({ plan, state, now });
+  useEffect(() => {
+    latest.current = { plan, state, now };
+  });
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s !== 'active') return;
+      const l = latest.current;
+      reschedule(l.plan, l.state, serverNow()).catch(() => undefined);
+    });
+    return () => sub.remove();
+  }, []);
 
   const sparkValues = useMemo(() => state.overallSeries.map((p) => p.value), [state.overallSeries]);
   const sparkTarget = useMemo(() => state.targetSeries.map((p) => p.value), [state.targetSeries]);

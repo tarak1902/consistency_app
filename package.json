@@ -14,7 +14,8 @@
     "db:test": "supabase test db",
     "db:types": "supabase gen types typescript --local > src/data/database.types.ts",
     "gen:sql-vectors": "node scripts/gen-sql-vectors.mjs",
-    "check": "tsc --noEmit && expo lint && jest"
+    "check": "tsc --noEmit && expo lint && jest",
+    "db:smoke": "node scripts/sql-smoke.mjs"
   },
   "dependencies": {
     "@date-fns/tz": "^1.5.0",
@@ -62,6 +63,7 @@
     "victory-native": "^42.0.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.16",
     "@types/jest": "30.0.0",
     "@types/react": "~19.3.0",
     "eslint": "^9.39.5",

@@ -51,13 +51,15 @@ content_path = "./supabase/templates/otp.html"
 subject = "Your Compound sign-in code"
 content_path = "./supabase/templates/otp.html"
 
+# Native Apple / Google sign-in against the LOCAL stack. Off by default so
+# `supabase start` works without credentials; set the env vars and flip to true.
 [auth.external.apple]
-enabled = true
+enabled = false
 client_id = "env(APPLE_BUNDLE_ID)"
 secret = ""
 
 [auth.external.google]
-enabled = true
+enabled = false
 # Comma-separated list: web client id first, then the iOS client id.
 client_id = "env(GOOGLE_CLIENT_IDS)"
 secret = "env(GOOGLE_WEB_CLIENT_SECRET)"

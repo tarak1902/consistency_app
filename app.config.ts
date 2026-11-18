@@ -1,5 +1,6 @@
 import type { ExpoConfig, ConfigContext } from 'expo/config';
 
+// Keep in sync with APP_NAME in src/lib/config.ts (this file runs in Node).
 const APP_NAME = 'Compound';
 const BUNDLE_ID = 'app.compound.consistency';
 
@@ -68,7 +69,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   experiments: {
     typedRoutes: true,
   },
+  // Set by `eas init`; read from env so the config stays shareable.
+  ...(process.env.EAS_OWNER ? { owner: process.env.EAS_OWNER } : {}),
   extra: {
     appName: APP_NAME,
+    eas: process.env.EAS_PROJECT_ID ? { projectId: process.env.EAS_PROJECT_ID } : undefined,
   },
 });

@@ -143,7 +143,7 @@ export const LineChart = memo(function LineChart({
               : {
                   font: font as SkFont | null,
                   tickCount: Math.min(5, length - 1),
-                  labelColor: c.text3,
+                  labelColor: c.textMuted,
                   lineColor: c.border,
                   lineWidth: 0,
                   formatXLabel: (v) => (formatX ? formatX(Number(v)) : `${Math.round(Number(v))}`),
@@ -155,7 +155,7 @@ export const LineChart = memo(function LineChart({
               : {
                   font: font as SkFont | null,
                   tickCount: 4,
-                  labelColor: c.text3,
+                  labelColor: c.textMuted,
                   lineColor: c.border,
                   formatYLabel: (v) => `${Math.round(Number(v))}`,
                 },

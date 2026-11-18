@@ -18,9 +18,9 @@ export function Pill({ label, tone = 'neutral', icon, style, size = 'sm' }: Prop
   const map: Record<PillTone, { bg: string; fg: string }> = {
     neutral: { bg: c.surface2, fg: c.text2 },
     accent: { bg: c.accentSoft, fg: c.accent },
-    growth: { bg: c.growthSoft, fg: c.growth },
-    decline: { bg: c.declineSoft, fg: c.decline },
-    caution: { bg: c.cautionSoft, fg: c.caution },
+    growth: { bg: c.growthSoft, fg: c.growthInk },
+    decline: { bg: c.declineSoft, fg: c.declineInk },
+    caution: { bg: c.cautionSoft, fg: c.cautionInk },
   };
   const p = map[tone];
   return (

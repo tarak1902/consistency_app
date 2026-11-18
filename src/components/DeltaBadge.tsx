@@ -16,7 +16,7 @@ interface Props {
 export function DeltaBadge({ delta, size = 'md', bare = false }: Props) {
   const { c } = useTheme();
   const dir = delta === null || delta === 0 ? 'flat' : delta > 0 ? 'up' : 'down';
-  const fg = dir === 'up' ? c.growth : dir === 'down' ? c.decline : c.text3;
+  const fg = dir === 'up' ? c.growthInk : dir === 'down' ? c.declineInk : c.textMuted;
   const bg = dir === 'up' ? c.growthSoft : dir === 'down' ? c.declineSoft : c.surface2;
   const value = delta === null ? '–' : signedPct(delta);
   const glyph = dir === 'up' ? UP : dir === 'down' ? DOWN : '';

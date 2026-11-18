@@ -27,11 +27,11 @@ export function Text({
   const toneColor: Record<TextTone, string> = {
     primary: c.text,
     secondary: c.text2,
-    tertiary: c.text3,
+    tertiary: c.textMuted,
     accent: c.accent,
-    growth: c.growth,
-    decline: c.decline,
-    caution: c.caution,
+    growth: c.growthInk,
+    decline: c.declineInk,
+    caution: c.cautionInk,
     onAccent: c.onAccent,
   };
   const t = type[variant];

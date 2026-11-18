@@ -39,7 +39,7 @@ export function Button({
     primary: { bg: c.accent, fg: c.onAccent, pressed: c.accent },
     secondary: { bg: c.surface2, fg: c.text, border: c.border, pressed: c.border },
     ghost: { bg: 'transparent', fg: c.accent, pressed: c.surface2 },
-    destructive: { bg: c.decline, fg: c.onAccent, pressed: c.decline },
+    destructive: { bg: c.declineInk, fg: c.onAccent, pressed: c.declineInk },
   };
   const p = palette[variant];
   return (

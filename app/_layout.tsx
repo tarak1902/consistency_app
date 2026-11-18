@@ -3,7 +3,7 @@ import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
 import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
 import { useFonts } from 'expo-font';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
-import { Stack } from 'expo-router';
+import { router, Stack, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
@@ -23,8 +23,19 @@ SplashScreen.setOptions({ duration: 200, fade: true });
 
 function AppShell({ fontsReady }: { fontsReady: boolean }) {
   const { c, scheme } = useTheme();
-  const { ready, user } = useAuth();
+  const { ready, user, session } = useAuth();
+  const segments = useSegments();
   useRealtimeSync(user?.id);
+
+  // Signed out (sign-out, expired session, deleted account) on a protected
+  // screen: go to sign-in.
+  const first = segments[0];
+  useEffect(() => {
+    if (!ready || session) return;
+    const isPublic =
+      first === undefined || first === 'onboarding' || first === '(auth)' || first === 'dev';
+    if (!isPublic) router.replace('/sign-in');
+  }, [ready, session, first]);
 
   useEffect(() => {
     SystemUI.setBackgroundColorAsync(c.bg).catch(() => undefined);
