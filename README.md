@@ -151,18 +151,12 @@ In Google Cloud Console → APIs & Services:
 
 ### 6. EAS development build
 
-```bash
-npx eas-cli@latest login
-```
+The EAS project is already linked: `@tarak_888/compound`, with its owner and
+project ID in `app.config.ts`. Log in with `npx eas-cli@latest login` if needed.
 
-```bash
-npx eas-cli@latest init
-```
-
-Put the printed project ID in `.env` as `EAS_PROJECT_ID`, and your account in
-`EAS_OWNER`. For cloud builds, also add every `EXPO_PUBLIC_*` value and
-`GOOGLE_IOS_URL_SCHEME` as EAS environment variables (`npx eas-cli env:create`,
-environment "development"), since `.env` is not uploaded.
+For cloud builds, add every `EXPO_PUBLIC_*` value, plus `GOOGLE_IOS_URL_SCHEME`,
+`SENTRY_ORG` and `SENTRY_PROJECT`, as EAS environment variables
+(`npx eas-cli env:create`, environment "development"). `.env` is not uploaded.
 
 Android (an installable APK):
 
@@ -185,9 +179,10 @@ dev client. Expo Go will **not** work, because native Google Sign-In needs a dev
 
 ### 7. Sentry (optional)
 
-Set `EXPO_PUBLIC_SENTRY_DSN`. Without it, Sentry is a no-op. For readable stack
-traces in release builds, also set `SENTRY_AUTH_TOKEN`, `SENTRY_ORG` and
-`SENTRY_PROJECT` as EAS secrets.
+A Sentry project exists: `tarak-ab/compound` (React Native). Its DSN goes in
+`EXPO_PUBLIC_SENTRY_DSN`. Without it, Sentry is a no-op, and it stays off in dev
+builds. For readable stack traces in release builds, create an auth token in
+Sentry (Settings → Auth Tokens) and add it as the EAS secret `SENTRY_AUTH_TOKEN`.
 
 ### 8. Legal pages
 

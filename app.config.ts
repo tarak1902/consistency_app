@@ -64,15 +64,18 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         iosUrlScheme: process.env.GOOGLE_IOS_URL_SCHEME ?? 'com.googleusercontent.apps.placeholder',
       },
     ],
-    '@sentry/react-native',
+    [
+      '@sentry/react-native',
+      { organization: process.env.SENTRY_ORG, project: process.env.SENTRY_PROJECT },
+    ],
   ],
   experiments: {
     typedRoutes: true,
   },
-  // Set by `eas init`; read from env so the config stays shareable.
-  ...(process.env.EAS_OWNER ? { owner: process.env.EAS_OWNER } : {}),
+  // EAS project (created with `eas init`). Not secret; build servers need it.
+  owner: 'tarak_888',
   extra: {
     appName: APP_NAME,
-    eas: process.env.EAS_PROJECT_ID ? { projectId: process.env.EAS_PROJECT_ID } : undefined,
+    eas: { projectId: '813f7100-a023-45c7-afb1-20c9979182cd' },
   },
 });
