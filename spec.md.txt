@@ -1,0 +1,329 @@
+# SPEC.md — Consistency Compounding App (Iteration 1)
+
+> **To Claude Code:** This file is the complete spec for iteration 1. Read it end to end before writing any code. Build as much of it as you can in this iteration, working through the milestones in §12 in order. Don't stop to ask me questions unless you're truly blocked. Make a reasonable call, write it down in `DECISIONS.md`, and keep going. Use the latest stable Expo SDK. For any library API you're unsure of, check the current docs instead of relying on memory.
+
+---
+
+## 1. Product in one paragraph
+
+A small, honest consistency tracker. The user picks a **fixed set of daily "works"** (e.g., "Static GK", "English reading", "Reasoning", "Quant") and a **daily compounding rate of 1%, 2% or 3%** (3% is a hard cap). That setup is **locked for 30–90 days**. Every day the user ticks the works they actually did, but only inside a short **check-in window before their sleep time**. Two kinds of score compound over time:
+
+1. **Per-work score.** Each work has its own index. It rises when that work is done and falls when it's skipped.
+2. **Overall (day) score.** All-or-nothing. It rises only if *every* work was done that day; if *any* work is skipped, it falls.
+
+The core insight the app must communicate: *doing 3 of 4 things feels productive, but your consistency still went down.*
+
+Working name: **Compound**. Keep it in one constant (`APP_NAME`) so it can be renamed.
+Target users: Indian competitive-exam aspirants (SSC CGL, banking/IBPS/SBI PO, RBI Grade B, civil services). Expected scale: 1,000–10,000 users.
+
+---
+
+## 2. Domain rules (source of truth, non-negotiable)
+
+### 2.1 Plan configuration (all locked once created)
+| Field | Rule |
+|---|---|
+| Works | 1–8 works. Each has a `title` (1–40 chars) and optional `done_criteria` (≤120 chars, e.g. "1 editorial + 20 GK MCQs"). Order is fixed. |
+| Rate `r` | Exactly one of 0.01, 0.02, 0.03 |
+| Duration | 30–90 calendar days (integer). Presets 30 / 60 / 90 plus a stepper for custom values. |
+| Rest weekdays | 0–2 distinct ISO weekdays (1 = Mon … 7 = Sun), repeating every week |
+| Sleep time | Local time, allowed range 20:00 → 04:00 (wrapping past midnight) |
+| Timezone | The device's IANA timezone at creation time, stored and locked |
+
+- Only **one active plan per user** at a time.
+- No editing of any kind after creation. The only exits are: (a) the plan **completes** naturally; (b) the user **ends it early** (needs a typed confirmation). Either way the plan and all its graphs are **kept forever** in History.
+- A new plan may be pre-filled from a previous plan's works. That's allowed because it's a new plan.
+
+### 2.2 Plan days and the check-in window
+- A **plan day** is a calendar date `D` in the plan's timezone.
+- Window close: `close(D) = D 12:00 local + ((sleep_time − 12:00) mod 24h)`. So sleep 23:00 closes at D 23:00, and sleep 01:00 closes at **D+1** 01:00 (that window still belongs to D).
+- Window open: `open(D) = close(D) − 2h`.
+- Ticks for day `D` are accepted **only** while `open(D) ≤ server_now < close(D)`.
+- Untick is allowed inside the same window, for fixing mistakes.
+- `start_date` = the first plan day whose window has **not yet opened** at creation time. `end_date = start_date + duration − 1`.
+- Rest days (weekday of `D` is in `rest_weekdays`) accept no ticks. Neither score moves on a rest day. Rest days still count toward the calendar duration.
+- **Time authority is the server clock** (`now()` in Postgres), never the device clock. The client gets a server-time offset and uses it for every countdown and state.
+- If the window closes and nothing was ticked, the day is **missed** (all works count as skipped).
+
+### 2.3 Day status (for each plan day once its window has closed)
+- `rest`: rest weekday
+- `complete`: all works ticked
+- `partial`: some ticked, but not all
+- `missed`: none ticked
+- Not closed yet: `open` (window currently open), `upcoming` (future), or `pending` (today, before the window opens)
+
+### 2.4 Scoring (pure, deterministic, never stored)
+Every index starts at **100.0**. Iterate over plan days in order, applying only **closed** days:
+
+```
+for each closed day D:
+  if D is rest: no change
+  else:
+    for each work i: W_i *= done(i, D) ? (1 + r) : (1 − r)
+    O  *= allDone(D) ? (1 + r) : (1 − r)
+target (perfect path) T *= (1 + r) on every closed non-rest day
+```
+
+Derived stats:
+- `currentScore = O`, `perfectScore = T`, `gapPct = O / T − 1`
+- `completionRate = completeDays / closedNonRestDays`
+- `currentStreak` = consecutive `complete` days ending at the latest closed day (rest days are skipped over and don't break it); also `bestStreak`
+- Per work: `W_i`, `doneCount_i / closedNonRestDays`
+- **Stakes preview** for today, shown while the window is open or pending and not all works are ticked: `ifAllDone = O × (1 + r)`, `ifAnyMissed = O × (1 − r)`
+
+Reference values for onboarding copy (perfect path vs. every day missed, 90 days):
+1% → ×2.45 vs ×0.40 · 2% → ×5.94 vs ×0.16 · 3% → ×14.3 vs ×0.06.
+Compute them live in the UI. Don't hardcode them.
+
+Because plans are capped at 90 days, a **linear** y-axis stays readable (max ≈14×), so use linear.
+
+### 2.5 Ended-early plans
+Set `status = 'ended_early'`, `ended_at = now()`. Only days whose window closed before `ended_at` count. The remaining days are never scored.
+
+---
+
+## 3. Tech stack (fixed)
+
+- **App:** Expo (latest stable SDK), React Native, **TypeScript strict** (no `any`), **expo-router**. Use a development build (EAS), not Expo Go, because native Google Sign-In needs it.
+- **Backend:** Supabase: Postgres, Auth, Row Level Security, RPC functions, Realtime, one Edge Function.
+- **Auth:** Google (`@react-native-google-signin/google-signin`, free API) → `supabase.auth.signInWithIdToken`. Apple (`expo-apple-authentication`) → `signInWithIdToken`. Email **6-digit OTP code** (`signInWithOtp` + `verifyOtp({type:'email'})`), not magic links. Session persisted securely (`expo-secure-store` adapter, or AsyncStorage per Supabase's current RN guidance).
+- **Data:** `@tanstack/react-query` with a persisted cache (MMKV or AsyncStorage persister), so graphs open instantly and offline. Supabase Realtime subscription on the user's `checkins` and `plans`, so devices stay in sync.
+- **Charts:** `victory-native` (Skia-based) with `@shopify/react-native-skia`, plus `react-native-reanimated` and `react-native-gesture-handler`.
+- **Dates/time:** `date-fns` + `@date-fns/tz` (or the Temporal polyfill). All plan-time math goes in one module.
+- **Other:** `expo-haptics`, `expo-notifications` (local only), `lucide-react-native` icons, Inter via `@expo-google-fonts/inter`, `@gorhom/bottom-sheet`, Sentry (`@sentry/react-native`, DSN via env, no-op if missing).
+- **Tests:** Jest (`jest-expo`) for the domain logic. SQL tests via `supabase test db` (pgTAP) for the RPC rules.
+- **Not in iteration 1:** payments, analytics, share images, widgets, i18n beyond structure.
+
+---
+
+## 4. Database (Supabase migrations in `supabase/migrations/`)
+
+```sql
+create type plan_status as enum ('active','completed','ended_early');
+
+create table profiles (
+  id uuid primary key references auth.users on delete cascade,
+  display_name text,
+  created_at timestamptz not null default now()
+);
+
+create table plans (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users on delete cascade,
+  rate numeric(3,2) not null check (rate in (0.01,0.02,0.03)),
+  duration_days int not null check (duration_days between 30 and 90),
+  rest_weekdays smallint[] not null default '{}',
+  sleep_time time not null,
+  timezone text not null,
+  start_date date not null,
+  end_date date not null,
+  status plan_status not null default 'active',
+  ended_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create unique index one_active_plan on plans(user_id) where status = 'active';
+
+create table works (
+  id uuid primary key default gen_random_uuid(),
+  plan_id uuid not null references plans on delete cascade,
+  user_id uuid not null references auth.users on delete cascade,
+  title text not null check (char_length(title) between 1 and 40),
+  done_criteria text check (done_criteria is null or char_length(done_criteria) <= 120),
+  color_index smallint not null check (color_index between 0 and 7),
+  position smallint not null,
+  unique (plan_id, position)
+);
+
+create table checkins (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users on delete cascade,
+  plan_id uuid not null references plans on delete cascade,
+  work_id uuid not null references works on delete cascade,
+  plan_day date not null,
+  created_at timestamptz not null default now(),
+  unique (work_id, plan_day)
+);
+```
+
+Also: a trigger that creates a `profiles` row on signup; indexes on `(user_id)` and `(plan_id, plan_day)`; validation that `timezone` exists in `pg_timezone_names`, that rest weekdays are distinct and within 1..7 with at most 2, and that sleep time is in range. Put the validation inside `create_plan`.
+
+**RLS:** enable on every table. Users may only **SELECT** their own rows. There are **no** insert/update/delete policies on `plans`, `works` or `checkins`. All writes go through `SECURITY DEFINER` functions (with `set search_path = public`) that check `auth.uid()`.
+
+**RPC functions** (raise exceptions with stable error codes the client maps to friendly copy):
+- `server_time() → timestamptz`
+- `create_plan(p_rate, p_duration_days, p_rest_weekdays, p_sleep_time, p_timezone, p_works jsonb) → uuid`: finalizes the user's expired plans first, rejects if an active plan still exists (`ACTIVE_PLAN_EXISTS`), validates everything, computes `start_date`/`end_date` per §2.2, and inserts the plan and works atomically. `color_index` = position.
+- `check_in(p_work_id) → checkins row` and `uncheck(p_work_id) → void`: verify ownership and active plan, compute the plan day whose window contains `now()` (try local date and local date − 1), and enforce the window (`WINDOW_CLOSED`, plus the next open time in the error detail), plan range (`OUTSIDE_PLAN`) and rest days (`REST_DAY`). Make them idempotent (`on conflict do nothing`).
+- `end_plan_early(p_plan_id, p_confirm text)`: `p_confirm` must equal `'END'`.
+- `finalize_expired_plans()`: marks active plans as `completed` once `now() ≥ close(end_date)`. Call it from `create_plan`; also schedule it hourly with `pg_cron` if available. The client derives the effective status too, so the UI is never wrong.
+- Keep the window math in one SQL helper, `plan_window(day date, sleep time, tz text) → (open timestamptz, close timestamptz)`, that converts local times with `AT TIME ZONE`, so DST zones also behave correctly.
+
+**Edge Function `delete-account`:** verifies the JWT and deletes the auth user with the service role. Data is removed by cascade. Required by both app stores.
+
+**`supabase/seed.sql`:** a demo user with one completed 30-day plan and one active 60-day plan, 40 days in, with a realistic mix of complete, partial, missed and rest days. This is so graphs can be designed against real-looking data.
+
+**SQL tests:** window boundaries (one second before open, at open, one second before close, at close), sleep time after midnight, rest day rejection, a second active plan rejected, RLS (user B can't read or write user A's data), and immutability (a direct `update plans` as an authenticated user fails).
+
+---
+
+## 5. Client domain module (`src/domain/`), pure TypeScript with full tests
+
+- `time.ts`: `planWindow(day, plan)`, `planDayAt(instant, plan)`, `dayList(plan)`, `isRestDay`, `nextWindowOpen`, `startDateFor(createdAt, config)`. It must match the SQL exactly. Write shared **test vectors** (`src/domain/__tests__/vectors.json`) and use them in both the Jest and pgTAP tests where practical.
+- `scoring.ts`: `computePlanState(plan, works, checkins, serverNow)` returns `{ days: DayResult[], overallSeries, perWorkSeries, targetSeries, stats, today }`. Pure, no I/O.
+- Tests must cover: all-complete runs matching `100·(1+r)^n` to 1e-9; partial days (per-work up and down, overall down); rest days frozen; ended-early cut-off; streaks across rest days; stakes preview; sleep times past midnight; Asia/Kolkata and one DST zone (America/New_York).
+
+---
+
+## 6. Design direction (you are working to a senior product-design spec, so hold this bar)
+
+**Feel:** calm, precise, premium. Think Apple Fitness's restraint, Linear's precision, Things 3's calm. Every pixel should earn its place. It should look like a top-tier company shipped it: confident typography, generous spacing, nothing cluttered, no gimmicks.
+
+**Never:** emojis in UI, confetti, cartoon mascots, gradients everywhere, glassmorphism, guilt-trip copy, red badges, dark patterns, stock illustrations.
+
+**Dark mode is designed first.** Check-ins happen at night, just before sleep. Follow the system theme by default, with a manual override in Settings. Both themes must be fully polished.
+
+### 6.1 Tokens (`src/theme/tokens.ts`)
+Colors (dark / light):
+| Token | Dark | Light | Use |
+|---|---|---|---|
+| bg | #0B0D10 | #FAFAF7 | screen |
+| surface | #14171C | #FFFFFF | cards |
+| surface2 | #1B1F26 | #F2F3F0 | inputs, pressed states |
+| border | #262B33 | #E4E6E1 | hairlines (1px / StyleSheet.hairlineWidth) |
+| text | #F2F4F7 | #0E1116 | primary |
+| text2 | #A3ACB9 | #5A6270 | secondary |
+| text3 | #6B7380 | #8A919C | tertiary, disabled |
+| accent | #8B97FF | #4F5BD5 | brand, primary buttons, overall line |
+| growth | #3DD68C | #12A150 | up deltas, complete |
+| decline | #FF6B57 | #D93F2B | down deltas, missed |
+| caution | #F5B544 | #B7791F | last 30 min of window, partial |
+| target | text3, dashed | text3, dashed | perfect-path line |
+
+Work palette (by `color_index`), tuned to stay distinct in both themes: indigo #8B97FF, cyan #3DC2D6, amber #F5B544, magenta #E57AD9, lime #8BD45E, orange #FF8A65, violet #B49CFF, teal #5EC8A0. Use slightly deeper variants in light mode, and check contrast.
+
+Typography: Inter. Display 40/44 Semibold (hero score), Title1 28/34 Semibold, Title2 22/28 Semibold, Headline 17/22 Semibold, Body 17/24 Regular, Callout 15/20, Subhead 13/18 Medium (uppercase labels at +0.6 letter-spacing), Caption 12/16. **All numbers use tabular numerals** (`fontVariant: ['tabular-nums']`). Support Dynamic Type up to ~1.3× without breaking layouts.
+
+Spacing: 4-pt grid (4, 8, 12, 16, 20, 24, 32, 40, 56). Screen padding 20. Card padding 16–20. Radii: 12 (cards), 16 (large cards), 24 (sheets), full (pills/checkboxes). Minimum touch target 44×44.
+
+Motion: 180–280 ms, ease-out or gentle springs (Reanimated). Respect Reduce Motion. Haptics: `selection` on tick, `success` when the day completes, `warning` on a rejected action, `rigid` ticks during hold-to-lock.
+
+Color is never the only signal. Every delta shows a ▲/▼ glyph and a sign (+1.0% / −1.0%).
+
+### 6.2 Components (`src/components/`, build these yourself, no UI kit)
+Text (variants), Button (primary/secondary/ghost/destructive, loading state), IconButton, Card, Pill/StatusPill, SegmentedControl, Chip (selectable), Stepper, TimePicker sheet, **WorkCheckRow**, **HoldToConfirmButton** (fills over 1.5 s with haptic ticks, cancels on release), ProgressRing, DeltaBadge, StatTile, Toast, EmptyState, Skeleton, BottomSheet, LineChart wrapper (scrub gesture with tooltip), HeatmapCalendar.
+
+Add a **dev-only `/dev/ui` route**: a gallery of every component in both themes and all states. It's the design QA surface for future iterations.
+
+---
+
+## 7. Screens and flows
+
+Navigation: bottom tabs **Today · Progress · History**, with Settings opened from a top-right avatar button on Today. Auth and onboarding are a separate stack.
+
+### 7.1 Onboarding (3 screens, skippable, shown once)
+1. **"Small daily gains compound."** An animated two-curve chart over 90 days: 1% better vs 1% worse, ending at ×2.45 and ×0.40.
+2. **"Same work. Every day."** You choose your works once; they're locked for 30–90 days. "Consistency means not changing the plan to fit the mood."
+3. **"Two scores. One truth."** Each work has its own score. Your day score only rises when you do *all* of it. A mini illustration: 3 lines up, 1 down, overall down.
+CTA: "Get started".
+
+### 7.2 Sign in
+Logo wordmark plus one line: "Measure consistency, not motivation." Buttons: Continue with Apple (iOS only, shown first there), Continue with Google, Continue with email. The email flow: enter address → 6-digit code screen with auto-advance, paste support, resend after 30 s and clear errors. Small print links to Terms and Privacy.
+
+### 7.3 Create plan wizard (a progress bar of 6 steps, back always allowed)
+1. **Your works:** add 1–8 rows (title + optional "What counts as done?"). Reorder by drag. Each row gets its color dot. Helper text: "Be specific. Vague works are easy to fake."
+2. **Rate:** three large selectable cards. **1% Steady**, **2% Ambitious**, **3% Relentless**. Each shows the live multiplier for the chosen duration (e.g. "×2.45 in 90 perfect days") and the penalty ("a missed day costs the same 1%"). A small live preview chart. Note: "3% is the cap. Beyond that, compounding stops meaning anything."
+3. **Duration:** chips 30 / 60 / 90 plus a stepper (30–90). Show the end date.
+4. **Rest days:** 7 weekday chips. At most 2 selectable (a third tap shows a gentle toast). Default none. "Rest days pause both graphs."
+5. **Sleep time:** a time picker (20:00–04:00). Show the resulting window big and clear: "**Check-in: 9:00 PM – 11:00 PM** every day." Explain: "You can only tick within the 2 hours before sleep. The server's clock decides, not your phone's."
+6. **Review & lock:** a summary card of everything. A warning block: "Once locked, your works, rate, rest days and sleep time can't change for 60 days. You can end early, but the plan will be marked as ended." Then a **Hold to lock** button. On success, a brief ring animation, success haptic, and "Your plan starts today / tomorrow" with the first window time.
+
+### 7.4 Today (home)
+Top to bottom:
+- **Header:** "DAY 12 OF 60" (subhead), the date (title2), avatar button on the right.
+- **StatusPill** (live, updates every minute using server-offset time):
+  - before window → neutral: "Check-in opens 9:00 PM · in 3h 12m"
+  - open → accent: "Check-in open · closes in 1h 04m" (caution color in the last 30 min)
+  - closed and complete → growth: "Day 12 complete"
+  - closed and incomplete → decline: "Day 12 closed · 3 of 4"
+  - rest → neutral: "Rest day · graphs paused"
+  - not started → "Your plan starts tomorrow · first check-in 9:00 PM"
+- **Score hero card:** label "CONSISTENCY", big score (display, e.g. 112.4), DeltaBadge for the last closed day, a secondary line "Perfect path 115.8 · gap −2.9%", and a small sparkline.
+- **Stakes row** (while pending/open and not all ticked): "All 4 done → 113.5 ▲" and "Any missed → 111.3 ▼", side by side.
+- **Works list:** one WorkCheckRow per work. It shows the color dot, title, done-criteria (text2), the per-work score and a mini delta on the right, and a 28-pt circular checkbox. Outside the window the checkbox shows a lock glyph; tapping it shows a toast with the next open time. Ticks are optimistic with rollback, and server errors map to human copy.
+- When the last work is ticked: the ProgressRing fills, success haptic, and the card switches to its "Day complete" state. Calm, not flashy.
+- **Plan finished:** a card "Plan complete · see results" → the Results screen.
+
+### 7.5 Progress
+- SegmentedControl: **Overall | Each work**.
+- **Overall:** line chart of O by day, with a dashed perfect-path line. Days that weren't complete get small decline-colored dots on the line. Scrubbing shows a tooltip (Day N, date, value, status). Below it, a 2×3 StatTile grid: Current score, Perfect path, Gap, Completion rate, Current streak, Best streak.
+- **Each work:** a multi-line chart (one line per work color) with toggle chips to show/hide each line. Below it, ranked rows: color dot, title, score, delta since start, "41/45 days".
+- **HeatmapCalendar** for the plan: filled = complete, half-filled = partial, outlined decline = missed, dash = rest, empty = future. Includes a legend.
+- Charts need an accessibility label summarizing the trend in text.
+
+### 7.6 History
+Cards for past plans: date range, status pill (Completed / Ended early), final overall score vs perfect, completion rate, and a tiny sparkline. Tapping one opens the read-only plan detail (same visuals as Progress, plus the locked config). There's also a "Start a new plan" CTA that offers to pre-fill works from that plan.
+
+### 7.7 Results (at plan end)
+Final overall score vs perfect path, completion rate, best streak, the per-work ranking, and one honest summary sentence (e.g. "You completed 41 of 52 active days. Reasoning carried you; Quant held you back."). CTA: "Start next plan".
+
+### 7.8 Plan details and ending early
+A read-only view of the active plan's locked settings. Danger zone: "End plan early" opens a sheet that explains the consequence, has a text field requiring "END", and a destructive button.
+
+### 7.9 Settings
+Account (name, email, sign out), Appearance (System/Dark/Light), Notifications (window-opens reminder, 30-min-left reminder, each toggleable), Export my data (JSON + CSV via the share sheet), "How scoring works" (a clear explainer page with the formulas in plain language), Privacy Policy, Terms (placeholder URLs in config), Delete account (two-step confirmation → Edge Function), and the app version.
+
+### 7.10 System states (design every one)
+- Loading: skeletons, never spinners on full screens.
+- Offline: a non-blocking banner "You're offline. Check-ins need a connection because time is verified by the server." Cached graphs still render.
+- Errors: inline, human, with a retry.
+- Empty: the first-run Today with no plan shows a clear CTA card "Create your plan".
+
+---
+
+## 8. Notifications (local, `expo-notifications`)
+Schedule per plan day, skipping rest days: "Check-in is open" at `open(D)`, and "30 minutes left · 2 of 4 done" at `close(D) − 30m`. The second one is only for today and gets cancelled or rescheduled after each tick. Reschedule on app foreground and after plan changes. Ask for permission contextually, at the end of the wizard, not at launch.
+
+---
+
+## 9. Copy and voice
+Direct, calm, adult. No exclamation marks except in rare celebration. No guilt ("You failed"); state facts ("Day closed · 3 of 4"). Numbers: score to 1 decimal, deltas as signed % to 1 decimal, multipliers as ×2.45. All strings go in `src/copy/en.ts`, so Hindi/Telugu can be added later.
+
+---
+
+## 10. Quality bar
+- TypeScript strict, ESLint + Prettier, no warnings. `tsc --noEmit` and all tests pass at every milestone.
+- 60 fps scrolling and chart scrubbing on a mid-range Android phone. Memoize chart data.
+- Accessibility: labels on every control, roles, checkbox states announced, contrast ≥ 4.5:1 for text, Dynamic Type, Reduce Motion.
+- Secrets only via `.env` (`EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, Google client IDs, Sentry DSN). Commit an `.env.example`.
+- No service-role key anywhere in the app.
+
+---
+
+## 11. Project structure
+```
+app/                     expo-router routes: (auth), (onboarding), (tabs)/today|progress|history, plan/new, plan/[id], results/[id], settings, dev/ui
+src/theme/               tokens, ThemeProvider, useTheme
+src/components/          primitives + composed components
+src/domain/              time.ts, scoring.ts, __tests__/
+src/data/                supabase client, queries, mutations, realtime, error mapping
+src/lib/                 haptics, notifications, format, serverClock
+src/copy/en.ts
+supabase/migrations/  supabase/seed.sql  supabase/tests/  supabase/functions/delete-account/
+README.md  DECISIONS.md  .env.example  app.config.ts  eas.json
+```
+
+---
+
+## 12. Milestones (commit after each; run typecheck + tests before moving on)
+1. Scaffold: Expo + router + TS strict + lint + Jest; theme tokens; fonts.
+2. Domain module + full tests (§5).
+3. Supabase: migrations, RLS, RPCs, pg_cron job, seed, pgTAP tests, generated types.
+4. Component library + `/dev/ui` gallery in both themes.
+5. Auth (Google, Apple, email OTP) + onboarding + session handling.
+6. Create-plan wizard incl. hold-to-lock.
+7. Today screen with live window states, optimistic ticks, stakes row, server clock.
+8. Progress (charts + heatmap), History, plan detail, Results.
+9. Settings, end early, export, delete account (Edge Function), notifications, offline/error/empty states, Realtime sync.
+10. Polish pass (spacing, motion, haptics, accessibility audit) → README with exact setup steps (Supabase project, CLI, Google Cloud OAuth client IDs for Android/iOS/web, Apple Sign-In setup, EAS dev build, env vars) → final report.
+
+## 13. Final report (end of iteration 1)
+Reply with: what's done, per milestone; anything stubbed or skipped and why; every assumption from `DECISIONS.md`; the exact manual steps I must do (keys, consoles, accounts); and a short list of things I should test on my phone first.
