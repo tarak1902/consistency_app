@@ -72,7 +72,7 @@ bundle. **Never** put the service-role key in `.env`.
 
 ### 2. Supabase project (hosted)
 
-> **Already done for project `hdavtaqoipexfoynnmbf`:** schema pushed, Edge
+> **Already done for project `wjdmksywazqfgpkkzrba` (Compound1, Mumbai):** schema pushed, Edge
 > Function deployed, cron and Realtime verified, types generated. Steps 1–6 below
 > are for setting up another environment. Steps 3 onward in the next sections
 > (email template, Google, Apple) still need doing in the dashboard.

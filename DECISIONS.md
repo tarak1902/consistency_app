@@ -93,10 +93,11 @@ decided and why. Change any of them freely.
 26. **`supabase/config.toml` was written by hand**, since the Supabase CLI and Docker
     weren't available at first. `database.types.ts` is now generated from the hosted
     project (`supabase gen types typescript --linked`).
-    26a. **Hosted project:** `hdavtaqoipexfoynnmbf`, region Tokyo (ap-northeast-1).
-    Mumbai would be closer to Indian users; changing region means a new project.
-    Both migrations are applied, `delete-account` is deployed, the cron job and
-    Realtime publication are verified, and window times match the shared vectors.
+    26a. **Hosted project:** `Compound1` (`wjdmksywazqfgpkkzrba`), region Mumbai
+    (ap-south-1), close to Indian users. Both migrations are applied,
+    `delete-account` is deployed, the cron job and Realtime publication are
+    verified, and window times match the shared vectors. An earlier Tokyo project
+    (`hdavtaqoipexfoynnmbf`) got the same deploy first and is no longer used by the app.
     26b. **Advisor warnings left on purpose:** `create_plan`, `check_in`, `uncheck` and
     `end_plan_early` are SECURITY DEFINER functions that signed-in users can execute
     (lint 0029). They are the only write path, and each one checks `auth.uid()` and
