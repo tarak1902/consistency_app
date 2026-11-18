@@ -7,6 +7,7 @@ import Animated, {
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
+  withDelay,
   withTiming,
 } from 'react-native-reanimated';
 import { t } from '@/copy/en';
@@ -57,9 +58,11 @@ export function HoldToConfirmButton({
   const complete = useCallback(() => {
     stopTicks();
     setHolding(false);
-    haptics.success();
+    // The caller plays the success haptic once the action actually succeeds.
+    haptics.rigid();
     onConfirm();
-  }, [onConfirm, stopTicks]);
+    fill.set(withDelay(600, withTiming(0, { duration: 300 })));
+  }, [onConfirm, stopTicks, fill]);
 
   const start = () => {
     if (disabled || loading) return;
@@ -70,9 +73,11 @@ export function HoldToConfirmButton({
       n += 1;
       if (n < TICKS) haptics.rigid();
     }, durationMs / TICKS);
-    fill.value = withTiming(1, { duration: durationMs, easing: Easing.linear }, (finished) => {
-      if (finished) runOnJS(complete)();
-    });
+    fill.set(
+      withTiming(1, { duration: durationMs, easing: Easing.linear }, (finished) => {
+        if (finished) runOnJS(complete)();
+      }),
+    );
   };
 
   const cancel = () => {
@@ -80,10 +85,10 @@ export function HoldToConfirmButton({
     stopTicks();
     setHolding(false);
     cancelAnimation(fill);
-    fill.value = withTiming(0, { duration: 220, easing: Easing.out(Easing.cubic) });
+    fill.set(withTiming(0, { duration: 220, easing: Easing.out(Easing.cubic) }));
   };
 
-  const fillStyle = useAnimatedStyle(() => ({ width: fill.value * width }));
+  const fillStyle = useAnimatedStyle(() => ({ width: fill.get() * width }));
   const inactive = !!disabled || !!loading;
 
   return (
