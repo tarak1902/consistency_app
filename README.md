@@ -72,6 +72,11 @@ bundle. **Never** put the service-role key in `.env`.
 
 ### 2. Supabase project (hosted)
 
+> **Already done for project `hdavtaqoipexfoynnmbf`:** schema pushed, Edge
+> Function deployed, cron and Realtime verified, types generated. Steps 1–6 below
+> are for setting up another environment. Steps 3 onward in the next sections
+> (email template, Google, Apple) still need doing in the dashboard.
+
 1. Create a project at supabase.com. For Indian users pick **South Asia (Mumbai)**.
 2. Copy **Project URL** and the **anon / publishable key** (Project Settings → API)
    into `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`.

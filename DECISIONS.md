@@ -90,9 +90,17 @@ decided and why. Change any of them freely.
     you run `supabase db reset`. The mix is deterministic: about 60% complete, 25%
     partial, 15% missed, with Sundays as rest days. Quant is the most-skipped work,
     which gives the Results sentence something to say.
-26. **`supabase/config.toml` and `database.types.ts` were written by hand.** The
-    Supabase CLI and Docker weren't available in the build environment. The types
-    mirror the CLI's output format. Regenerate with `npm run db:types`.
+26. **`supabase/config.toml` was written by hand**, since the Supabase CLI and Docker
+    weren't available at first. `database.types.ts` is now generated from the hosted
+    project (`supabase gen types typescript --linked`).
+    26a. **Hosted project:** `hdavtaqoipexfoynnmbf`, region Tokyo (ap-northeast-1).
+    Mumbai would be closer to Indian users; changing region means a new project.
+    Both migrations are applied, `delete-account` is deployed, the cron job and
+    Realtime publication are verified, and window times match the shared vectors.
+    26b. **Advisor warnings left on purpose:** `create_plan`, `check_in`, `uncheck` and
+    `end_plan_early` are SECURITY DEFINER functions that signed-in users can execute
+    (lint 0029). They are the only write path, and each one checks `auth.uid()` and
+    ownership. Every other advisor finding was fixed in `20261118000100_hardening.sql`.
 27. **The SQL was verified on PGlite** (Postgres 17 in WASM), using a small
     pgTAP-compatible shim and Supabase stubs: `npm run db:smoke`, 105/105 assertions.
     The tests are standard pgTAP files, so `supabase test db` runs them unchanged.
