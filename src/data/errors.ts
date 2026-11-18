@@ -25,9 +25,9 @@ export const ERROR_CODES = [
 export type ErrorCode = (typeof ERROR_CODES)[number];
 
 export class AppError extends Error {
-  code: ErrorCode | 'NETWORK' | 'UNKNOWN';
+  code: ErrorCode | 'NETWORK' | 'SERVER' | 'UNKNOWN';
   detail: string | null;
-  constructor(code: ErrorCode | 'NETWORK' | 'UNKNOWN', detail: string | null = null) {
+  constructor(code: ErrorCode | 'NETWORK' | 'SERVER' | 'UNKNOWN', detail: string | null = null) {
     super(code);
     this.code = code;
     this.detail = detail;
@@ -38,6 +38,7 @@ interface MaybePgError {
   message?: unknown;
   details?: unknown;
   name?: unknown;
+  status?: unknown;
 }
 
 export function toAppError(e: unknown): AppError {
@@ -46,6 +47,12 @@ export function toAppError(e: unknown): AppError {
   const message = typeof err.message === 'string' ? err.message : '';
   const code = ERROR_CODES.find((c) => message === c);
   if (code) return new AppError(code, typeof err.details === 'string' ? err.details : null);
+  const status = typeof err.status === 'number' ? err.status : 0;
+  // auth-js uses AuthRetryableFetchError both for real connection failures
+  // (status 0) and for 5xx answers from the server. Only the first is offline.
+  if (err.name === 'AuthRetryableFetchError' && status >= 500) {
+    return new AppError('SERVER', message || null);
+  }
   if (
     /network request failed|failed to fetch|fetch failed|networkerror|timed? ?out/i.test(message) ||
     err.name === 'FunctionsFetchError' ||
@@ -62,6 +69,8 @@ export function errorMessage(e: unknown, tz?: string): string {
   switch (err.code) {
     case 'NETWORK':
       return t.errors.network;
+    case 'SERVER':
+      return t.errors.server;
     case 'UNKNOWN':
       return t.errors.generic;
     case 'WINDOW_CLOSED':

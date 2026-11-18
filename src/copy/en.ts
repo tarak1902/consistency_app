@@ -66,6 +66,7 @@ export const en = {
     googleFailed: "Google sign-in didn't complete. Try again.",
     appleFailed: "Apple sign-in didn't complete. Try again.",
     notConfigured: 'This sign-in method is not configured yet.',
+    sendFailed: "We couldn't send the email. Try again in a minute.",
   },
 
   wizard: {
@@ -321,6 +322,7 @@ export const en = {
   errors: {
     generic: 'Something went wrong. Try again.',
     network: "Can't reach the server. Check your connection and try again.",
+    server: 'The server had a problem. Try again in a minute.',
     WINDOW_CLOSED: 'The check-in window is closed.',
     WINDOW_CLOSED_NEXT: (when: string) => `The check-in window is closed. It opens ${when}.`,
     OUTSIDE_PLAN: 'Your plan has not started yet.',

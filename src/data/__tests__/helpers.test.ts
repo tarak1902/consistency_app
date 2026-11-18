@@ -41,6 +41,18 @@ describe('error mapping', () => {
   });
   test('network failures', () => {
     expect(toAppError(new TypeError('Network request failed')).code).toBe('NETWORK');
+    expect(
+      toAppError({ name: 'AuthRetryableFetchError', message: 'Load failed', status: 0 }).code,
+    ).toBe('NETWORK');
+  });
+  test('5xx answers from auth are server errors, not offline', () => {
+    const e = {
+      name: 'AuthRetryableFetchError',
+      message: 'Error sending magic link email',
+      status: 500,
+    };
+    expect(toAppError(e).code).toBe('SERVER');
+    expect(errorMessage(e)).toBe('The server had a problem. Try again in a minute.');
   });
   test('unknown errors get generic copy, never raw text', () => {
     expect(errorMessage(new Error('duplicate key value violates unique constraint'))).toBe(

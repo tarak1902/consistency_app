@@ -5,7 +5,7 @@ import { Button, Screen, Text, TextField } from '@/components';
 import { ScreenHeader } from '@/components/ScreenHeader';
 import { t } from '@/copy/en';
 import { NotConfiguredError, sendEmailCode } from '@/data/auth';
-import { errorMessage } from '@/data/errors';
+import { errorMessage, toAppError } from '@/data/errors';
 import { haptics } from '@/lib/haptics';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -29,7 +29,13 @@ export default function EmailScreen() {
       router.push({ pathname: '/verify', params: { email: value } });
     } catch (e) {
       haptics.warning();
-      setError(e instanceof NotConfiguredError ? t.auth.notConfigured : errorMessage(e));
+      setError(
+        e instanceof NotConfiguredError
+          ? t.auth.notConfigured
+          : toAppError(e).code === 'SERVER'
+            ? t.auth.sendFailed
+            : errorMessage(e),
+      );
     } finally {
       setBusy(false);
     }
